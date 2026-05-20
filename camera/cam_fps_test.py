@@ -11,6 +11,7 @@ from picamera2 import Picamera2
 
 WIDTH = 640
 HEIGHT = 480
+SHOW_PREVIEW = False
 
 picam2 = Picamera2()
 config = picam2.create_preview_configuration(
@@ -21,23 +22,29 @@ picam2.start()
 
 frame_count = 0
 start_time = time.time()
+try:
+    while True:
+        frame = picam2.capture_array()
 
-while True:
-    frame = picam2.capture_array()
+        frame_count += 1
+        elapsed = time.time() - start_time
 
-    frame_count += 1
-    elapsed = time.time() - start_time
+        if elapsed >= 1.0:
+            fps = frame_count / elapsed
+            print(f"Camera FPS: {fps:.2f}")
+            frame_count = 0
+            start_time = time.time()
 
-    if elapsed >= 1.0:
-        fps = frame_count / elapsed
-        print(f"Camera FPS: {fps:.2f}")
-        frame_count = 0
-        start_time = time.time()
+        cv2.imshow("Camera FPS Test", frame)
 
-    cv2.imshow("Camera FPS Test", frame)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            break
+except KeyboardInterrupt:
+    print("Stopped by user")
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+finally:
+    picam2.stop()
+    cvc.destroyAllWindows()
 
 picam2.stop()
 cv2.destroyAllWindows()
