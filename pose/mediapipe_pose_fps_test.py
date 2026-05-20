@@ -35,55 +35,45 @@ pose = mp_pose.Pose(
 )
 
 picam2 = Picamera2()
+
 config = picam2.create_preview_configuration(
     main={"format": "RGB888", "size": (WIDTH, HEIGHT)}
 )
+
 picam2.configure(config)
 picam2.start()
 
 frame_count = 0
 start_time = time.time()
-fps = 0.0
 
-while True:
-    frame = picam2.capture_array()
+print("Starting MediaPipe Pose FPS test...")
 
-    # MediaPipe는 RGB 입력 사용
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+try:
+    while True:
+        frame = picam2.capture_array()
 
-    results = pose.process(rgb_frame)
+        results = pose.process(frame)
 
-    if results.pose_landmarks:
-        mp_drawing.draw_landmarks(
-            frame,
-            results.pose_landmarks,
-            mp_pose.POSE_CONNECTIONS
-        )
+        if results.pose_landmarks:
+            mp_drawing.draw_landmarks(
+                frame,
+                results.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS
+            )
 
-    frame_count += 1
-    elapsed = time.time() - start_time
+        frame_count += 1
+        elapsed = time.time() - start_time
 
-    if elapsed >= 1.0:
-        fps = frame_count / elapsed
-        print(f"MediaPipe Pose FPS: {fps:.2f}")
-        frame_count = 0
-        start_time = time.time()
+        if elapsed >= 1.0:
+            fps = frame_count / elapsed
+            print(f"MediaPipe Pose FPS: {fps:.2f}")
 
-    cv2.putText(
-        frame,
-        f"Pose FPS: {fps:.2f}",
-        (20, 40),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (0, 255, 0),
-        2
-    )
+            frame_count = 0
+            start_time = time.time()
 
-    cv2.imshow("MediaPipe Pose FPS Test", frame)
+except KeyboardInterrupt:
+    print("\nStopped by user.")
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
-
-picam2.stop()
-pose.close()
-cv2.destroyAllWindows()
+finally:
+    picam2.stop()
+    pose.close()
