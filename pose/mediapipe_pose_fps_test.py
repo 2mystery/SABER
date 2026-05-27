@@ -8,6 +8,8 @@ Camera Capture
 → MediaPipe inference
 → landmark drawing
 → 화면 출력
+
+Frame Skip = 1 / complexity = 0, 1 / resolution = 640x480
 '''
 
 # pip install mediapipe opencv-python

@@ -9,8 +9,7 @@ Camera Capture
 → landmark drawing
 → 화면 출력
 
-Frame Skip = 2
-→ 2프레임마다 MediaPipe inference 수행
+Frame Skip = 2 / complexity = 0 / resolution = 640x480, 1280x720
 '''
 
 import time
@@ -75,9 +74,6 @@ try:
                 mp_pose.POSE_CONNECTIONS
             )
 
-        # 화면 출력
-        cv2.imshow("MediaPipe Pose FPS Test", frame)
-
         # FPS 계산
         frame_count += 1
         elapsed = time.time() - start_time
@@ -90,14 +86,9 @@ try:
             frame_count = 0
             start_time = time.time()
 
-        # ESC 키 종료
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
-
 except KeyboardInterrupt:
     print("\nStopped by user.")
 
 finally:
     picam2.stop()
     pose.close()
-    cv2.destroyAllWindows()
