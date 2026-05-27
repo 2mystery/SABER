@@ -22,12 +22,17 @@ pose = mp_pose.Pose(
 )
 
 picam2 = Picamera2()
+
+# Use XRGB8888 for stable OpenCV display on Raspberry Pi
 config = picam2.create_preview_configuration(
-    main={"format": "RGB888", "size": (WIDTH, HEIGHT)}
+    main={"format": "XRGB8888", "size": (WIDTH, HEIGHT)}
 )
+
 picam2.configure(config)
 picam2.start()
-time.sleep(2)  # camera auto exposure / white balance stabilization
+
+# Let auto exposure / auto white balance stabilize
+time.sleep(2)
 
 frame_count = 0
 processed_count = 0
@@ -59,16 +64,17 @@ def print_pose_info(pose_info):
 
 try:
     while True:
-        # Picamera2 RGB888 frame
-        frame_rgb = picam2.capture_array()
+        frame = picam2.capture_array()
         frame_count += 1
 
-        # For OpenCV display/drawing
-        frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+        # XRGB8888 usually comes as 4-channel image.
+        # OpenCV display uses BGR, so keep first 3 channels.
+        frame_bgr = frame[:, :, :3].copy()
 
-        # Frame skipping
         if frame_count % FRAME_SKIP == 0:
-            # MediaPipe requires RGB input
+            # MediaPipe requires RGB
+            frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+
             latest_results = pose.process(frame_rgb)
             processed_count += 1
 
@@ -98,7 +104,6 @@ try:
 
                 print_pose_info(latest_pose_info)
 
-        # Draw latest pose landmarks
         if latest_results and latest_results.pose_landmarks:
             mp_drawing.draw_landmarks(
                 frame_bgr,
@@ -106,7 +111,6 @@ try:
                 mp_pose.POSE_CONNECTIONS
             )
 
-        # FPS calculation
         elapsed_time = time.time() - start_time
         camera_fps = frame_count / elapsed_time if elapsed_time > 0 else 0
         pose_fps = processed_count / elapsed_time if elapsed_time > 0 else 0
