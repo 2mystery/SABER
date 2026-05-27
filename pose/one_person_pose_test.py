@@ -27,6 +27,7 @@ config = picam2.create_preview_configuration(
 )
 picam2.configure(config)
 picam2.start()
+time.sleep(2)  # camera auto exposure / white balance stabilization
 
 frame_count = 0
 processed_count = 0
@@ -58,16 +59,17 @@ def print_pose_info(pose_info):
 
 try:
     while True:
-        frame = picam2.capture_array()
+        # Picamera2 RGB888 frame
+        frame_rgb = picam2.capture_array()
         frame_count += 1
 
-        # OpenCV display uses BGR
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        # For OpenCV display/drawing
+        frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
 
         # Frame skipping
         if frame_count % FRAME_SKIP == 0:
-            rgb_frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-            latest_results = pose.process(rgb_frame)
+            # MediaPipe requires RGB input
+            latest_results = pose.process(frame_rgb)
             processed_count += 1
 
             latest_pose_info = None
@@ -75,9 +77,18 @@ try:
             if latest_results.pose_landmarks:
                 landmarks = latest_results.pose_landmarks.landmark
 
-                nose = get_landmark_info(landmarks, mp_pose.PoseLandmark.NOSE)
-                left_shoulder = get_landmark_info(landmarks, mp_pose.PoseLandmark.LEFT_SHOULDER)
-                right_shoulder = get_landmark_info(landmarks, mp_pose.PoseLandmark.RIGHT_SHOULDER)
+                nose = get_landmark_info(
+                    landmarks,
+                    mp_pose.PoseLandmark.NOSE
+                )
+                left_shoulder = get_landmark_info(
+                    landmarks,
+                    mp_pose.PoseLandmark.LEFT_SHOULDER
+                )
+                right_shoulder = get_landmark_info(
+                    landmarks,
+                    mp_pose.PoseLandmark.RIGHT_SHOULDER
+                )
 
                 latest_pose_info = {
                     "nose": nose,
@@ -97,12 +108,12 @@ try:
 
         # FPS calculation
         elapsed_time = time.time() - start_time
-        fps = frame_count / elapsed_time if elapsed_time > 0 else 0
+        camera_fps = frame_count / elapsed_time if elapsed_time > 0 else 0
         pose_fps = processed_count / elapsed_time if elapsed_time > 0 else 0
 
         cv2.putText(
             frame_bgr,
-            f"Camera FPS: {fps:.2f}",
+            f"Camera FPS: {camera_fps:.2f}",
             (20, 30),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
@@ -172,5 +183,7 @@ finally:
     print(f"Frame Skip: {FRAME_SKIP}")
     print(f"Total Frames: {frame_count}")
     print(f"Processed Pose Frames: {processed_count}")
-    print(f"Camera FPS: {frame_count / total_time:.2f}")
-    print(f"Pose FPS: {processed_count / total_time:.2f}")
+
+    if total_time > 0:
+        print(f"Camera FPS: {frame_count / total_time:.2f}")
+        print(f"Pose FPS: {processed_count / total_time:.2f}")
