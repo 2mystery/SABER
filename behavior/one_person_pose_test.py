@@ -1,8 +1,10 @@
 from behavior.head_turn_detector import HeadTurnDetector
 from behavior.leaving_seat_detector import LeavingSeatDetector
+from behavior.downward_pose_detector import DownwardPoseDetector
 
 head_turn_detector = HeadTurnDetector()
 leaving_seat_detector = LeavingSeatDetector()
+downward_pose_detector = DownwardPoseDetector()
 ...
 
 if latest_results.pose_landmarks:
@@ -30,6 +32,26 @@ seat_result = leaving_seat_detector.update(
     right_shoulder_y=right_shoulder_y
 )
 
+downward_result = downward_pose_detector.update(
+    nose_y=nose_y,
+    left_shoulder_y=left_shoulder_y,
+    right_shoulder_y=right_shoulder_y
+)
+
 # 출력
-print(head_result)
-print(seat_result)
+print("\n================ Detection Result ================")
+
+print("[HEAD TURN]")
+print(f"detected: {head_result['detected']}")
+print(f"state   : {head_result['state']}")
+print(f"message : {head_result['message']}")
+
+print("\n[LEAVING SEAT]")
+print(f"detected: {seat_result['detected']}")
+print(f"state   : {seat_result['state']}")
+print(f"message : {seat_result['message']}")
+
+print("\n[DOWNWARD POSE]")
+print(f"detected: {downward_result['detected']}")
+print(f"state   : {downward_result['state']}")
+print(f"message : {downward_result['message']}")
