@@ -34,8 +34,7 @@ LEAVING_SEAT_VERSION = "v1"
 # detector 파일 내부를 직접 수정하지 않아도 됨
 
 HEAD_TURN_CONFIG = {
-    "left_threshold": 0.50,
-    "right_threshold": 0.40,
+    "offset_threshold": 0.06,
     "min_turn_changes": 3,
     "history_size": 30,
 }
@@ -246,23 +245,20 @@ try:
 
         nose_x = None
         nose_y = None
+        left_shoulder_x = None
+        right_shoulder_x = None
         left_shoulder_y = None
         right_shoulder_y = None
 
         head_result = get_unknown_head_result()
 
-        seat_result = leaving_seat_detector.update(
-            pose_detected=False,
-            nose_y=None,
-            left_shoulder_y=None,
-            right_shoulder_y=None,
-        )
+        seat_result = {
+            "detected": False,
+            "message": "Waiting for pose result",
+            "state": "unknown",
+        }
 
-        downward_result = downward_pose_detector.update(
-            nose_y=None,
-            left_shoulder_y=None,
-            right_shoulder_y=None,
-        )
+        downward_result = get_unknown_downward_result()
 
         if latest_results and latest_results.pose_landmarks:
             pose_detected = True
@@ -274,10 +270,18 @@ try:
 
             nose_x = nose.x
             nose_y = nose.y
+
+            left_shoulder_x = left_shoulder.x
+            right_shoulder_x = right_shoulder.x
+
             left_shoulder_y = left_shoulder.y
             right_shoulder_y = right_shoulder.y
 
-            head_result = head_turn_detector.update(nose_x)
+            head_result = head_turn_detector.update(
+                nose_x=nose_x,
+                left_shoulder_x=left_shoulder_x,
+                right_shoulder_x=right_shoulder_x,
+            )
 
             seat_result = leaving_seat_detector.update(
                 pose_detected=pose_detected,
@@ -299,7 +303,11 @@ try:
                 mp_pose.POSE_CONNECTIONS,
             )
 
+            head_offset = head_result.get("head_offset", 0.0)
+
             landmark_text = (
+                f"nose.x={nose_x:.3f} "
+                f"offset={head_offset:.3f} "
                 f"nose.y={nose_y:.3f} "
                 f"L_sh.y={left_shoulder_y:.3f} "
                 f"R_sh.y={right_shoulder_y:.3f}"
