@@ -12,7 +12,6 @@ from behavior.downward_pose_detector import DownwardPoseDetector
 # =========================
 # Camera / Pose settings
 # =========================
-
 WIDTH = 640
 HEIGHT = 480
 MODEL_COMPLEXITY = 0
@@ -32,7 +31,6 @@ LEAVING_SEAT_VERSION = "v1"
 # =========================
 # 여기 값만 바꾸면서 실험하면 됨
 # detector 파일 내부를 직접 수정하지 않아도 됨
-
 HEAD_TURN_CONFIG = {
     "offset_threshold": 0.06,
     "min_turn_changes": 3,
@@ -54,20 +52,18 @@ LEAVING_SEAT_V2_CONFIG = {
 
 DOWNWARD_POSE_CONFIG = {
     "calibration_seconds": 3.0,
-    "weak_downward_delta": 0.08,
-    "downward_delta": 0.12,
-    "prolonged_downward_delta": 0.18,
-    "shoulder_shift_delta": 0.25,
-    "downward_seconds": 1.5,
-    "prolonged_seconds": 3.0,
+    "weak_downward_delta": 0.04,
+    "downward_delta": 0.08,
+    "prolonged_downward_delta": 0.13,
+    "shoulder_shift_delta": 0.28,
+    "downward_seconds": 1.2,
+    "prolonged_seconds": 2.5,
     "body_shift_seconds": 2.0,
 }
-
 
 # =========================
 # Detector initialization
 # =========================
-
 head_turn_detector = HeadTurnDetector(**HEAD_TURN_CONFIG)
 downward_pose_detector = DownwardPoseDetector(**DOWNWARD_POSE_CONFIG)
 
@@ -82,7 +78,6 @@ else:
 # =========================
 # MediaPipe initialization
 # =========================
-
 mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 
@@ -251,11 +246,12 @@ try:
 
         head_result = get_unknown_head_result()
 
-        seat_result = {
-            "detected": False,
-            "message": "Waiting for pose result",
-            "state": "unknown",
-        }
+        seat_result = leaving_seat_detector.update(
+            pose_detected=False,
+            nose_y=None,
+            left_shoulder_y=None,
+            right_shoulder_y=None,
+        )
 
         downward_result = get_unknown_downward_result()
 
