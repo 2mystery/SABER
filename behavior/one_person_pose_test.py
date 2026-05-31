@@ -31,6 +31,7 @@ LEAVING_SEAT_VERSION = "v1"
 # Threshold override settings
 # =========================
 # 여기 값만 바꾸면서 실험하면 됨
+# detector 파일 내부를 직접 수정하지 않아도 됨
 
 HEAD_TURN_CONFIG = {
     "left_threshold": 0.50,
@@ -70,7 +71,6 @@ DOWNWARD_POSE_CONFIG = {
 # =========================
 
 head_turn_detector = HeadTurnDetector(**HEAD_TURN_CONFIG)
-
 downward_pose_detector = DownwardPoseDetector(**DOWNWARD_POSE_CONFIG)
 
 if LEAVING_SEAT_VERSION == "v1":
@@ -104,15 +104,20 @@ pose = mp_pose.Pose(
 
 picam2 = Picamera2()
 
+# 초록빛 문제 해결용:
+# BGR888 / RGB888 대신 XRGB8888 사용
 config = picam2.create_preview_configuration(
     main={
-        "format": "BGR888",
+        "format": "XRGB8888",
         "size": (WIDTH, HEIGHT),
     }
 )
 
 picam2.configure(config)
 picam2.start()
+
+# Auto exposure / white balance 안정화 시간
+time.sleep(2)
 
 
 # =========================
@@ -122,7 +127,7 @@ picam2.start()
 def draw_status_panel(frame, head_result, seat_result, downward_result):
     """
     VNC/OpenCV 화면 좌측 상단에 detector 상태와 alert message 표시.
-    frame은 BGR display frame이어야 함.
+    frame은 OpenCV display용 BGR frame이어야 함.
     """
     x = 20
     y = 35
@@ -184,30 +189,20 @@ def print_all_results(head_result, seat_result, downward_result):
     print_result("DOWNWARD POSE", downward_result)
 
 
-def get_default_results(leaving_seat_detector, downward_pose_detector):
-    """
-    pose가 없거나 아직 처리 전일 때 기본 result 생성.
-    """
-    head_result = {
+def get_unknown_head_result():
+    return {
         "detected": False,
         "message": "No nose landmark detected",
         "state": "unknown",
     }
 
-    seat_result = leaving_seat_detector.update(
-        pose_detected=False,
-        nose_y=None,
-        left_shoulder_y=None,
-        right_shoulder_y=None,
-    )
 
-    downward_result = downward_pose_detector.update(
-        nose_y=None,
-        left_shoulder_y=None,
-        right_shoulder_y=None,
-    )
-
-    return head_result, seat_result, downward_result
+def get_unknown_downward_result():
+    return {
+        "detected": False,
+        "message": "Required landmark not detected",
+        "state": "unknown",
+    }
 
 
 # =========================
@@ -223,6 +218,7 @@ latest_results = None
 
 print("One-person pose test started.")
 print(f"Resolution: {WIDTH}x{HEIGHT}")
+print(f"Camera Format: XRGB8888")
 print(f"Model Complexity: {MODEL_COMPLEXITY}")
 print(f"Frame Skip: {FRAME_SKIP}")
 print(f"LeavingSeatDetector version: {LEAVING_SEAT_VERSION}")
@@ -230,20 +226,21 @@ print("Press 'q' on the camera window or Ctrl+C in terminal to stop.")
 
 try:
     while True:
-        # Picamera2 BGR888 → OpenCV display용 BGR frame
-        frame_bgr = picam2.capture_array()
+        # Picamera2 XRGB8888 → 4-channel frame
+        frame = picam2.capture_array()
         frame_count += 1
 
-        # 화면 출력용 frame
-        display_frame = frame_bgr.copy()
+        # XRGB8888은 보통 4채널로 들어옴.
+        # OpenCV display는 BGR 3채널 기준이므로 앞 3채널만 사용.
+        display_frame = frame[:, :, :3].copy()
 
-        # MediaPipe Pose는 RGB 입력을 사용하므로 inference용만 RGB 변환
-        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        # MediaPipe Pose는 RGB 입력을 사용하므로 inference용만 RGB 변환.
+        frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
 
         # Frame skip 적용
         if frame_count % FRAME_SKIP == 0:
             latest_results = pose.process(frame_rgb)
-            processed_count += 1    
+            processed_count += 1
 
         pose_detected = False
 
@@ -252,9 +249,19 @@ try:
         left_shoulder_y = None
         right_shoulder_y = None
 
-        head_result, seat_result, downward_result = get_default_results(
-            leaving_seat_detector,
-            downward_pose_detector,
+        head_result = get_unknown_head_result()
+
+        seat_result = leaving_seat_detector.update(
+            pose_detected=False,
+            nose_y=None,
+            left_shoulder_y=None,
+            right_shoulder_y=None,
+        )
+
+        downward_result = downward_pose_detector.update(
+            nose_y=None,
+            left_shoulder_y=None,
+            right_shoulder_y=None,
         )
 
         if latest_results and latest_results.pose_landmarks:
@@ -285,7 +292,7 @@ try:
                 right_shoulder_y=right_shoulder_y,
             )
 
-            # landmark drawing은 display_frame(BGR)에 그림
+            # landmark drawing은 display_frame에 그림
             mp_drawing.draw_landmarks(
                 display_frame,
                 latest_results.pose_landmarks,
@@ -354,9 +361,12 @@ finally:
     total_time = time.time() - start_time
     print("\n====== Final Result ======")
     print(f"Resolution: {WIDTH}x{HEIGHT}")
+    print("Camera Format: XRGB8888")
     print(f"Model Complexity: {MODEL_COMPLEXITY}")
     print(f"Frame Skip: {FRAME_SKIP}")
     print(f"Total Frames: {frame_count}")
     print(f"Processed Pose Frames: {processed_count}")
-    print(f"Camera FPS: {frame_count / total_time:.2f}")
-    print(f"Pose FPS: {processed_count / total_time:.2f}")
+
+    if total_time > 0:
+        print(f"Camera FPS: {frame_count / total_time:.2f}")
+        print(f"Pose FPS: {processed_count / total_time:.2f}")
