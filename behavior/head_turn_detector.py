@@ -4,27 +4,28 @@ from collections import deque
 class HeadTurnDetector:
     def __init__(
         self,
-        left_threshold=0.50,
-        right_threshold=0.40,
+        offset_threshold=0.06,
         min_turn_changes=3,
         history_size=30
     ):
-        self.left_threshold = left_threshold
-        self.right_threshold = right_threshold
+        self.offset_threshold = offset_threshold
         self.min_turn_changes = min_turn_changes
         self.history = deque(maxlen=history_size)
 
-    def update(self, nose_x):
-        if nose_x is None:
+    def update(self, nose_x, left_shoulder_x=None, right_shoulder_x=None):
+        if nose_x is None or left_shoulder_x is None or right_shoulder_x is None:
             return {
                 "detected": False,
-                "message": "No nose landmark detected",
+                "message": "Required landmarks not detected",
                 "state": "unknown"
             }
 
-        if nose_x > self.left_threshold:
+        shoulder_center_x = (left_shoulder_x + right_shoulder_x) / 2
+        head_offset = nose_x - shoulder_center_x
+
+        if head_offset > self.offset_threshold:
             state = "left"
-        elif nose_x < self.right_threshold:
+        elif head_offset < -self.offset_threshold:
             state = "right"
         else:
             state = "center"
@@ -37,13 +38,15 @@ class HeadTurnDetector:
             return {
                 "detected": True,
                 "message": "Repeated head turning detected",
-                "state": state
+                "state": state,
+                "head_offset": head_offset
             }
 
         return {
             "detected": False,
             "message": "Normal head movement",
-            "state": state
+            "state": state,
+            "head_offset": head_offset
         }
 
     def _count_left_right_changes(self):
