@@ -106,7 +106,7 @@ picam2 = Picamera2()
 
 config = picam2.create_preview_configuration(
     main={
-        "format": "RGB888",
+        "format": "BGR888",
         "size": (WIDTH, HEIGHT),
     }
 )
@@ -230,17 +230,20 @@ print("Press 'q' on the camera window or Ctrl+C in terminal to stop.")
 
 try:
     while True:
-        # Picamera2 RGB888 → RGB frame
-        frame_rgb = picam2.capture_array()
+        # Picamera2 BGR888 → OpenCV display용 BGR frame
+        frame_bgr = picam2.capture_array()
         frame_count += 1
 
-        # OpenCV imshow는 BGR 기준이므로 display용만 변환
-        display_frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+        # 화면 출력용 frame
+        display_frame = frame_bgr.copy()
+
+        # MediaPipe Pose는 RGB 입력을 사용하므로 inference용만 RGB 변환
+        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
         # Frame skip 적용
         if frame_count % FRAME_SKIP == 0:
             latest_results = pose.process(frame_rgb)
-            processed_count += 1
+            processed_count += 1    
 
         pose_detected = False
 
