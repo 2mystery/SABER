@@ -10,7 +10,7 @@ from behavior.downward_pose_detector import DownwardPoseDetector
 
 
 # =========================
-# Settings
+# Camera / Pose settings
 # =========================
 
 WIDTH = 640
@@ -18,22 +18,65 @@ HEIGHT = 480
 MODEL_COMPLEXITY = 0
 FRAME_SKIP = 2
 
+
+# =========================
+# Detector version setting
+# =========================
 # "v1": 기존 LeavingSeatDetector
 # "v2": LeavingSeatDetector2
 LEAVING_SEAT_VERSION = "v1"
 
 
 # =========================
+# Threshold override settings
+# =========================
+# 여기 값만 바꾸면서 실험하면 됨
+
+HEAD_TURN_CONFIG = {
+    "left_threshold": 0.50,
+    "right_threshold": 0.40,
+    "min_turn_changes": 3,
+    "history_size": 30,
+}
+
+LEAVING_SEAT_V1_CONFIG = {
+    "no_pose_frame_threshold": 10,
+    "upper_body_y_threshold": 0.15,
+}
+
+LEAVING_SEAT_V2_CONFIG = {
+    "partial_nose_y_threshold": 0.05,
+    "partial_shoulder_center_y_threshold": 0.30,
+    "partial_seconds": 2.0,
+    "no_person_seconds": 2.0,
+    "complete_leaving_seconds": 5.0,
+}
+
+DOWNWARD_POSE_CONFIG = {
+    "baseline_nose_y": 0.33,
+    "baseline_shoulder_center_y": 0.535,
+    "weak_downward_delta": 0.12,
+    "downward_delta": 0.17,
+    "prolonged_downward_delta": 0.22,
+    "shoulder_shift_delta": 0.15,
+    "downward_seconds": 3.0,
+    "prolonged_seconds": 5.0,
+    "body_shift_seconds": 2.0,
+}
+
+
+# =========================
 # Detector initialization
 # =========================
 
-head_turn_detector = HeadTurnDetector()
-downward_pose_detector = DownwardPoseDetector()
+head_turn_detector = HeadTurnDetector(**HEAD_TURN_CONFIG)
+
+downward_pose_detector = DownwardPoseDetector(**DOWNWARD_POSE_CONFIG)
 
 if LEAVING_SEAT_VERSION == "v1":
-    leaving_seat_detector = LeavingSeatDetector()
+    leaving_seat_detector = LeavingSeatDetector(**LEAVING_SEAT_V1_CONFIG)
 elif LEAVING_SEAT_VERSION == "v2":
-    leaving_seat_detector = LeavingSeatDetector2()
+    leaving_seat_detector = LeavingSeatDetector2(**LEAVING_SEAT_V2_CONFIG)
 else:
     raise ValueError("Invalid LEAVING_SEAT_VERSION. Use 'v1' or 'v2'.")
 
@@ -60,12 +103,14 @@ pose = mp_pose.Pose(
 # =========================
 
 picam2 = Picamera2()
+
 config = picam2.create_preview_configuration(
     main={
         "format": "RGB888",
         "size": (WIDTH, HEIGHT),
     }
 )
+
 picam2.configure(config)
 picam2.start()
 
@@ -75,8 +120,12 @@ picam2.start()
 # =========================
 
 def draw_status_panel(frame, head_result, seat_result, downward_result):
+    """
+    VNC/OpenCV 화면 좌측 상단에 detector 상태와 alert message 표시.
+    frame은 BGR display frame이어야 함.
+    """
     x = 20
-    y = 30
+    y = 35
     line_gap = 30
 
     status_lines = [
@@ -135,6 +184,32 @@ def print_all_results(head_result, seat_result, downward_result):
     print_result("DOWNWARD POSE", downward_result)
 
 
+def get_default_results(leaving_seat_detector, downward_pose_detector):
+    """
+    pose가 없거나 아직 처리 전일 때 기본 result 생성.
+    """
+    head_result = {
+        "detected": False,
+        "message": "No nose landmark detected",
+        "state": "unknown",
+    }
+
+    seat_result = leaving_seat_detector.update(
+        pose_detected=False,
+        nose_y=None,
+        left_shoulder_y=None,
+        right_shoulder_y=None,
+    )
+
+    downward_result = downward_pose_detector.update(
+        nose_y=None,
+        left_shoulder_y=None,
+        right_shoulder_y=None,
+    )
+
+    return head_result, seat_result, downward_result
+
+
 # =========================
 # Main loop
 # =========================
@@ -147,15 +222,19 @@ last_print_time = time.time()
 latest_results = None
 
 print("One-person pose test started.")
+print(f"Resolution: {WIDTH}x{HEIGHT}")
+print(f"Model Complexity: {MODEL_COMPLEXITY}")
+print(f"Frame Skip: {FRAME_SKIP}")
 print(f"LeavingSeatDetector version: {LEAVING_SEAT_VERSION}")
 print("Press 'q' on the camera window or Ctrl+C in terminal to stop.")
 
 try:
     while True:
+        # Picamera2 RGB888 → RGB frame
         frame_rgb = picam2.capture_array()
         frame_count += 1
 
-        # OpenCV display uses BGR
+        # OpenCV imshow는 BGR 기준이므로 display용만 변환
         display_frame = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
 
         # Frame skip 적용
@@ -170,23 +249,9 @@ try:
         left_shoulder_y = None
         right_shoulder_y = None
 
-        head_result = {
-            "detected": False,
-            "message": "No nose landmark detected",
-            "state": "unknown",
-        }
-
-        seat_result = leaving_seat_detector.update(
-            pose_detected=False,
-            nose_y=None,
-            left_shoulder_y=None,
-            right_shoulder_y=None,
-        )
-
-        downward_result = downward_pose_detector.update(
-            nose_y=None,
-            left_shoulder_y=None,
-            right_shoulder_y=None,
+        head_result, seat_result, downward_result = get_default_results(
+            leaving_seat_detector,
+            downward_pose_detector,
         )
 
         if latest_results and latest_results.pose_landmarks:
@@ -217,6 +282,7 @@ try:
                 right_shoulder_y=right_shoulder_y,
             )
 
+            # landmark drawing은 display_frame(BGR)에 그림
             mp_drawing.draw_landmarks(
                 display_frame,
                 latest_results.pose_landmarks,
@@ -239,7 +305,7 @@ try:
                 2,
             )
 
-        # VNC/OpenCV 화면 좌측 상단에 상태 표시
+        # 상태 패널 표시
         draw_status_panel(
             display_frame,
             head_result,
