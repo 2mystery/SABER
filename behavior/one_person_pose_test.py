@@ -53,14 +53,13 @@ LEAVING_SEAT_V2_CONFIG = {
 }
 
 DOWNWARD_POSE_CONFIG = {
-    "baseline_nose_y": 0.33,
-    "baseline_shoulder_center_y": 0.535,
-    "weak_downward_delta": 0.12,
-    "downward_delta": 0.17,
-    "prolonged_downward_delta": 0.22,
-    "shoulder_shift_delta": 0.15,
-    "downward_seconds": 3.0,
-    "prolonged_seconds": 5.0,
+    "calibration_seconds": 3.0,
+    "weak_downward_delta": 0.08,
+    "downward_delta": 0.12,
+    "prolonged_downward_delta": 0.18,
+    "shoulder_shift_delta": 0.25,
+    "downward_seconds": 1.5,
+    "prolonged_seconds": 3.0,
     "body_shift_seconds": 2.0,
 }
 
