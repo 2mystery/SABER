@@ -55,10 +55,7 @@ DOWNWARD_POSE_CONFIG = {
     "weak_downward_delta": 0.04,
     "downward_delta": 0.08,
     "prolonged_downward_delta": 0.13,
-    "shoulder_shift_delta": 0.28,
-    "downward_seconds": 1.2,
     "prolonged_seconds": 2.5,
-    "body_shift_seconds": 2.0,
 }
 
 

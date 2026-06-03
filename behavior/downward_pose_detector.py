@@ -5,13 +5,10 @@ class DownwardPoseDetector:
     def __init__(
         self,
         calibration_seconds=3.0,
-        weak_downward_delta=0.08,
-        downward_delta=0.12,
-        prolonged_downward_delta=0.18,
-        shoulder_shift_delta=0.25,
-        downward_seconds=1.5,
-        prolonged_seconds=3.0,
-        body_shift_seconds=2.0
+        weak_downward_delta=0.04,
+        downward_delta=0.08,
+        prolonged_downward_delta=0.13,
+        prolonged_seconds=2.5,
     ):
         # Calibration settings
         self.calibration_seconds = calibration_seconds
@@ -28,17 +25,12 @@ class DownwardPoseDetector:
         self.weak_downward_delta = weak_downward_delta
         self.downward_delta = downward_delta
         self.prolonged_downward_delta = prolonged_downward_delta
-        self.shoulder_shift_delta = shoulder_shift_delta
 
         # Duration settings
-        self.downward_seconds = downward_seconds
         self.prolonged_seconds = prolonged_seconds
-        self.body_shift_seconds = body_shift_seconds
 
-        # Timer states
-        self.downward_start_time = None
+        # Timer state
         self.prolonged_start_time = None
-        self.body_shift_start_time = None
 
     def update(self, nose_y=None, left_shoulder_y=None, right_shoulder_y=None):
         if nose_y is None or left_shoulder_y is None or right_shoulder_y is None:
@@ -56,84 +48,62 @@ class DownwardPoseDetector:
             return self._calibrate(nose_y, shoulder_center_y)
 
         nose_delta = nose_y - self.baseline_nose_y
-        shoulder_delta = shoulder_center_y - self.baseline_shoulder_center_y
 
         # 2. Prolonged downward posture
-        # 코가 많이 내려간 상태가 일정 시간 이상 유지되면 prolonged_downward
+        # 기준보다 많이 숙인 상태가 일정 시간 이상 유지되면 prolonged_downward
         if nose_delta >= self.prolonged_downward_delta:
             duration = self._update_timer("prolonged_start_time")
-            self.downward_start_time = None
-            self.body_shift_start_time = None
 
             if duration >= self.prolonged_seconds:
                 return {
                     "detected": True,
                     "message": "Prolonged downward posture detected",
-                    "state": "prolonged_downward"
+                    "state": "prolonged_downward",
+                    "nose_delta": nose_delta,
+                    "duration": duration,
                 }
 
+            # 아직 prolonged_seconds를 넘기 전이면 downward로 판단
             return {
                 "detected": False,
-                "message": "Observing prolonged downward posture",
-                "state": "observing"
+                "message": "Downward posture detected, checking duration",
+                "state": "downward",
+                "nose_delta": nose_delta,
+                "duration": duration,
             }
+
+        # prolonged 기준 아래로 내려오면 prolonged timer reset
+        self._reset_timers()
 
         # 3. Downward posture
-        # 코가 기준보다 내려간 상태가 일정 시간 이상 유지되면 downward
+        # 기준보다 명확히 숙인 상태
         if nose_delta >= self.downward_delta:
-            duration = self._update_timer("downward_start_time")
-            self.prolonged_start_time = None
-            self.body_shift_start_time = None
-
-            if duration >= self.downward_seconds:
-                return {
-                    "detected": True,
-                    "message": "Downward posture detected",
-                    "state": "downward"
-                }
-
             return {
                 "detected": False,
-                "message": "Observing downward posture",
-                "state": "observing"
+                "message": "Downward posture",
+                "state": "downward",
+                "nose_delta": nose_delta,
+                "duration": 0,
             }
 
-        # 4. Body position shift
-        # 어깨 중심이 크게 내려간 상태가 일정 시간 이상 유지되면 body_shift
-        if shoulder_delta >= self.shoulder_shift_delta:
-            duration = self._update_timer("body_shift_start_time")
-            self.downward_start_time = None
-            self.prolonged_start_time = None
-
-            if duration >= self.body_shift_seconds:
-                return {
-                    "detected": True,
-                    "message": "Body position shift detected",
-                    "state": "body_shift"
-                }
-
-            return {
-                "detected": False,
-                "message": "Observing body position shift",
-                "state": "observing"
-            }
-
-        # 5. Weak downward movement
-        # 살짝 고개가 내려간 정도라면 alert로 보지 않음
+        # 4. Weak downward posture
+        # 살짝 고개가 내려간 상태
         if nose_delta >= self.weak_downward_delta:
-            self._reset_timers()
             return {
                 "detected": False,
-                "message": "Weak downward movement",
-                "state": "weak_downward"
+                "message": "Weak downward posture",
+                "state": "weak_downward",
+                "nose_delta": nose_delta,
+                "duration": 0,
             }
 
-        # 6. Normal posture
-        self._reset_timers()
+        # 5. Normal posture
         return {
             "detected": False,
             "message": "Normal posture",
-            "state": "normal"
+            "state": "normal",
+            "nose_delta": nose_delta,
+            "duration": 0,
         }
 
     def _calibrate(self, nose_y, shoulder_center_y):
@@ -185,6 +155,4 @@ class DownwardPoseDetector:
         return now - getattr(self, timer_name)
 
     def _reset_timers(self):
-        self.downward_start_time = None
         self.prolonged_start_time = None
-        self.body_shift_start_time = None
