@@ -9,9 +9,9 @@ import mediapipe as mp
 from picamera2 import Picamera2
 
 
-from head_turn_detector import HeadTurnDetector
-from downward_pose_detector import DownwardPoseDetector
-from leaving_seat_detector import LeavingSeatDetector
+from behavior.head_turn_detector import HeadTurnDetector
+from behavior.downward_pose_detector import DownwardPoseDetector
+from behavior.leaving_seat_detector import LeavingSeatDetector
 
 
 # =========================
