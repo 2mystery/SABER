@@ -38,7 +38,7 @@ HEAD_TURN_CONFIG = {
 }
 
 LEAVING_SEAT_V1_CONFIG = {
-    "no_pose_frame_threshold": 10,
+    "no_pose_frame_threshold": 6,
     "upper_body_y_threshold": 0.15,
 }
 
