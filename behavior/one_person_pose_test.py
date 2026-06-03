@@ -32,13 +32,13 @@ LEAVING_SEAT_VERSION = "v1"
 # 여기 값만 바꾸면서 실험하면 됨
 # detector 파일 내부를 직접 수정하지 않아도 됨
 HEAD_TURN_CONFIG = {
-    "offset_threshold": 0.06,
+    "offset_threshold": 0.04,
     "min_turn_changes": 3,
     "history_size": 30,
 }
 
 LEAVING_SEAT_V1_CONFIG = {
-    "no_pose_frame_threshold": 10,
+    "no_pose_frame_threshold": 6,
     "upper_body_y_threshold": 0.15,
 }
 
