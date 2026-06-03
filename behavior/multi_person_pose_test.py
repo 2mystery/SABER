@@ -32,25 +32,21 @@ MAX_MISSED_FRAMES = 20
 
 # detector configs
 HEAD_TURN_CONFIG = {
-    "offset_threshold": 0.06,
+    "offset_threshold": 0.04,
     "min_turn_changes": 3,
     "history_size": 30,
+}
+
+LEAVING_SEAT_CONFIG = {
+    "no_pose_frame_threshold": 6,
+    "upper_body_y_threshold": 0.15,
 }
 
 DOWNWARD_POSE_CONFIG = {
     "calibration_seconds": 3.0,
     "weak_downward_delta": 0.04,
     "downward_delta": 0.08,
-    "prolonged_downward_delta": 0.13,
-    "shoulder_shift_delta": 0.28,
-    "downward_seconds": 1.2,
     "prolonged_seconds": 2.5,
-    "body_shift_seconds": 2.0,
-}
-
-LEAVING_SEAT_CONFIG = {
-    "no_pose_frame_threshold": 10,
-    "upper_body_y_threshold": 0.15,
 }
 
 
