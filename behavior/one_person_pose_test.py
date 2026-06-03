@@ -54,7 +54,6 @@ DOWNWARD_POSE_CONFIG = {
     "calibration_seconds": 3.0,
     "weak_downward_delta": 0.04,
     "downward_delta": 0.08,
-    "prolonged_downward_delta": 0.13,
     "prolonged_seconds": 2.5,
 }
 
