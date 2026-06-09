@@ -1,3 +1,4 @@
+import time
 import cv2
 import numpy as np
 
@@ -9,11 +10,12 @@ import numpy as np
 CAMERA_WIDTH = 640
 CAMERA_HEIGHT = 480
 
-# 오른쪽 패널을 조금 넓혀서 겹침 완화
 PANEL_WIDTH = 340
 
 DASHBOARD_WIDTH = CAMERA_WIDTH + PANEL_WIDTH
 DASHBOARD_HEIGHT = CAMERA_HEIGHT
+
+CRITICAL_ALERT_SECONDS = 1.0
 
 
 # =========================
@@ -30,11 +32,17 @@ COLOR_TEXT_MUTED = (175, 180, 190)
 COLOR_WHITE = (255, 255, 255)
 
 COLOR_GREEN = (80, 200, 120)
-COLOR_YELLOW = (0, 220, 255)
 COLOR_ORANGE = (0, 140, 255)
 COLOR_RED = (60, 60, 255)
 COLOR_BLUE = (255, 150, 70)
 COLOR_GRAY = (130, 130, 130)
+
+
+# =========================
+# Alert timer state
+# =========================
+
+_critical_start_time = None
 
 
 # =========================
@@ -51,15 +59,6 @@ def render_one_person_dashboard(
     debug_mode=False,
     landmark_values=None,
 ):
-    """
-    camera_frame: OpenCV BGR frame
-    head_result, seat_result, downward_result: detector result dict
-    pose_fps: float
-    processed_this_frame: bool
-    debug_mode: bool
-    landmark_values: optional dict
-    """
-
     frame = _prepare_camera_frame(camera_frame)
 
     suspicion_level = compute_suspicion_level(
@@ -75,16 +74,18 @@ def render_one_person_dashboard(
         suspicion_level=suspicion_level,
     )
 
+    alert_active, critical_duration = update_critical_alert_state(
+        suspicion_level=suspicion_level,
+    )
+
     dashboard = np.full(
         (DASHBOARD_HEIGHT, DASHBOARD_WIDTH, 3),
         COLOR_BG,
         dtype=np.uint8,
     )
 
-    # Left camera area
     dashboard[0:CAMERA_HEIGHT, 0:CAMERA_WIDTH] = frame
 
-    # Camera area UI
     _draw_camera_badge(
         dashboard,
         suspicion_level=suspicion_level,
@@ -100,7 +101,6 @@ def render_one_person_dashboard(
             processed_this_frame=processed_this_frame,
         )
 
-    # Right dashboard panel
     panel_x = CAMERA_WIDTH
     _draw_side_panel_background(dashboard, panel_x)
 
@@ -119,6 +119,7 @@ def render_one_person_dashboard(
         w=PANEL_WIDTH - 40,
         h=78,
         suspicion_level=suspicion_level,
+        critical_duration=critical_duration,
     )
 
     _draw_evidence_section(
@@ -140,11 +141,8 @@ def render_one_person_dashboard(
         suspicion_level=suspicion_level,
     )
 
-    if suspicion_level in ["HIGH", "CRITICAL"]:
-        _draw_alert_banner(
-            dashboard,
-            suspicion_level=suspicion_level,
-        )
+    if alert_active:
+        _draw_alert_banner(dashboard)
 
     return dashboard
 
@@ -154,11 +152,9 @@ def render_one_person_dashboard(
 # =========================
 
 def compute_suspicion_level(head_result, seat_result, downward_result):
-    head_state = head_result.get("state", "unknown")
     seat_state = seat_result.get("state", "unknown")
     downward_state = downward_result.get("state", "unknown")
-
-    head_detected = head_result.get("detected", False)
+    head_severity = head_result.get("severity", "low")
 
     if seat_state == "absent":
         return "CRITICAL"
@@ -166,23 +162,20 @@ def compute_suspicion_level(head_result, seat_result, downward_result):
     if downward_state == "prolonged_downward":
         return "CRITICAL"
 
+    if head_severity == "critical":
+        return "CRITICAL"
+
     if seat_state == "partial_leave":
         return "HIGH"
 
-    if downward_state == "downward":
+    if downward_state in ["weak_downward", "downward"]:
         return "HIGH"
 
-    if head_detected:
+    if head_severity == "high":
         return "HIGH"
-
-    if downward_state == "weak_downward":
-        return "MEDIUM"
-
-    if head_state in ["left", "right"]:
-        return "MEDIUM"
 
     if (
-        head_state in ["unknown", "waiting"]
+        head_result.get("state", "unknown") in ["unknown", "waiting"]
         or seat_state in ["unknown", "waiting"]
         or downward_state in ["unknown", "calibrating", "calibrated"]
     ):
@@ -195,6 +188,8 @@ def build_reason_text(head_result, seat_result, downward_result, suspicion_level
     head_state = head_result.get("state", "unknown")
     seat_state = seat_result.get("state", "unknown")
     downward_state = downward_result.get("state", "unknown")
+    head_severity = head_result.get("severity", "low")
+    turn_count = head_result.get("turn_count", 0)
 
     if seat_state == "absent":
         return "Student absent from monitored area"
@@ -205,17 +200,20 @@ def build_reason_text(head_result, seat_result, downward_result, suspicion_level
             return f"Downward posture maintained for {duration:.1f}s"
         return "Prolonged downward posture observed"
 
+    if head_severity == "critical":
+        return f"Head turned {turn_count} times"
+
     if seat_state == "partial_leave":
         return "Student partially left monitored area"
 
     if downward_state == "downward":
         return "Downward posture observed"
 
-    if head_result.get("detected", False):
-        return "Repeated head turning observed"
-
     if downward_state == "weak_downward":
         return "Weak downward movement observed"
+
+    if head_severity == "high":
+        return "Head turning observed"
 
     if head_state in ["left", "right"]:
         return f"Head turned {head_state}"
@@ -226,11 +224,25 @@ def build_reason_text(head_result, seat_result, downward_result, suspicion_level
     return "No suspicious behavior observed"
 
 
+def update_critical_alert_state(suspicion_level):
+    global _critical_start_time
+
+    now = time.time()
+
+    if suspicion_level == "CRITICAL":
+        if _critical_start_time is None:
+            _critical_start_time = now
+
+        duration = now - _critical_start_time
+        return duration >= CRITICAL_ALERT_SECONDS, duration
+
+    _critical_start_time = None
+    return False, 0.0
+
+
 def get_level_color(level):
     if level == "LOW":
         return COLOR_GREEN
-    if level == "MEDIUM":
-        return COLOR_YELLOW
     if level == "HIGH":
         return COLOR_ORANGE
     if level == "CRITICAL":
@@ -242,10 +254,7 @@ def get_state_color(state):
     if state in ["normal", "present", "center"]:
         return COLOR_GREEN
 
-    if state in ["weak_downward", "left", "right"]:
-        return COLOR_YELLOW
-
-    if state in ["downward", "partial_leave"]:
+    if state in ["weak_downward", "left", "right", "downward", "partial_leave"]:
         return COLOR_ORANGE
 
     if state in ["prolonged_downward", "absent"]:
@@ -255,6 +264,18 @@ def get_state_color(state):
         return COLOR_BLUE
 
     return COLOR_GRAY
+
+
+def get_head_color(head_result):
+    severity = head_result.get("severity", "low")
+
+    if severity == "critical":
+        return COLOR_RED
+
+    if severity == "high":
+        return COLOR_ORANGE
+
+    return get_state_color(head_result.get("state", "unknown"))
 
 
 # =========================
@@ -332,7 +353,7 @@ def _draw_header(img, x, y, pose_fps, processed_this_frame):
     )
 
 
-def _draw_suspicion_card(img, x, y, w, h, suspicion_level):
+def _draw_suspicion_card(img, x, y, w, h, suspicion_level, critical_duration):
     level_color = get_level_color(suspicion_level)
 
     _draw_card(img, x, y, w, h, border_color=level_color)
@@ -356,6 +377,17 @@ def _draw_suspicion_card(img, x, y, w, h, suspicion_level):
         color=level_color,
         thickness=2,
     )
+
+    if suspicion_level == "CRITICAL":
+        _put_text(
+            img,
+            f"{critical_duration:.1f}s",
+            x + w - 64,
+            y + 60,
+            scale=0.48,
+            color=COLOR_TEXT_MUTED,
+            thickness=1,
+        )
 
 
 def _draw_evidence_section(img, x, y, w, head_result, seat_result, downward_result):
@@ -381,6 +413,8 @@ def _draw_evidence_section(img, x, y, w, head_result, seat_result, downward_resu
         h=card_h,
         title="Head Movement",
         state=head_result.get("state", "unknown"),
+        border_color=get_head_color(head_result),
+        extra=f"turns: {head_result.get('turn_count', 0)}",
     )
 
     _draw_evidence_card(
@@ -391,6 +425,7 @@ def _draw_evidence_section(img, x, y, w, head_result, seat_result, downward_resu
         h=card_h,
         title="Downward Posture",
         state=downward_result.get("state", "unknown"),
+        border_color=get_state_color(downward_result.get("state", "unknown")),
     )
 
     _draw_evidence_card(
@@ -401,13 +436,12 @@ def _draw_evidence_section(img, x, y, w, head_result, seat_result, downward_resu
         h=card_h,
         title="Seat Presence",
         state=seat_result.get("state", "unknown"),
+        border_color=get_state_color(seat_result.get("state", "unknown")),
     )
 
 
-def _draw_evidence_card(img, x, y, w, h, title, state):
-    state_color = get_state_color(state)
-
-    _draw_card(img, x, y, w, h, border_color=state_color)
+def _draw_evidence_card(img, x, y, w, h, title, state, border_color, extra=None):
+    _draw_card(img, x, y, w, h, border_color=border_color)
 
     _put_text(
         img,
@@ -425,9 +459,20 @@ def _draw_evidence_card(img, x, y, w, h, title, state):
         x + 12,
         y + 34,
         scale=0.48,
-        color=state_color,
+        color=border_color,
         thickness=2,
     )
+
+    if extra:
+        _put_text(
+            img,
+            extra,
+            x + w - 84,
+            y + 34,
+            scale=0.38,
+            color=COLOR_TEXT_MUTED,
+            thickness=1,
+        )
 
 
 def _draw_reason_section(img, x, y, w, reason, suspicion_level):
@@ -453,7 +498,6 @@ def _draw_reason_section(img, x, y, w, reason, suspicion_level):
         fill_color=COLOR_CARD_DARK,
     )
 
-    # Reason 텍스트 폰트 조금 키움
     wrapped_lines = _wrap_text(reason, max_chars=26)
 
     line_y = y + 42
@@ -470,9 +514,7 @@ def _draw_reason_section(img, x, y, w, reason, suspicion_level):
         line_y += 22
 
 
-def _draw_alert_banner(img, suspicion_level):
-    color = get_level_color(suspicion_level)
-
+def _draw_alert_banner(img):
     x = 0
     y = 0
     w = CAMERA_WIDTH
@@ -484,7 +526,7 @@ def _draw_alert_banner(img, suspicion_level):
         overlay,
         (x, y),
         (x + w, y + h),
-        color,
+        COLOR_RED,
         -1,
     )
 
@@ -492,7 +534,7 @@ def _draw_alert_banner(img, suspicion_level):
 
     _put_text(
         img,
-        "[ALERT] Suspicious behavior observed",
+        "[ALERT] Critical suspicious behavior",
         x + 18,
         y + 27,
         scale=0.62,
