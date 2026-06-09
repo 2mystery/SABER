@@ -25,19 +25,15 @@ DEBUG_MODE = False
 # =========================
 # Detector version setting
 # =========================
-# "v1": 기존 LeavingSeatDetector
-# "v2": LeavingSeatDetector2
 LEAVING_SEAT_VERSION = "v1"
 
 
 # =========================
 # Threshold override settings
 # =========================
-# 여기 값만 바꾸면서 실험하면 됨
-# detector 파일 내부를 직접 수정하지 않아도 됨
 HEAD_TURN_CONFIG = {
-    "offset_threshold": 0.06,
-    "min_turn_changes": 3,
+    "offset_threshold": 0.04,
+    "critical_turn_count": 2,
     "history_size": 30,
 }
 
@@ -97,8 +93,6 @@ pose = mp_pose.Pose(
 # =========================
 picam2 = Picamera2()
 
-# 초록빛 문제 해결용:
-# BGR888 / RGB888 대신 XRGB8888 사용
 config = picam2.create_preview_configuration(
     main={
         "format": "XRGB8888",
@@ -109,7 +103,6 @@ config = picam2.create_preview_configuration(
 picam2.configure(config)
 picam2.start()
 
-# Auto exposure / white balance 안정화 시간
 time.sleep(2)
 
 
@@ -120,8 +113,11 @@ time.sleep(2)
 def get_unknown_head_result():
     return {
         "detected": False,
+        "severity": "unknown",
         "message": "No nose landmark detected",
         "state": "unknown",
+        "head_offset": None,
+        "turn_count": 0,
     }
 
 
@@ -148,7 +144,9 @@ def print_result(title, result):
     print(f"message : {result.get('message', '')}")
 
     extra_keys = [
+        "severity",
         "head_offset",
+        "turn_count",
         "no_pose_count",
         "pose_detected",
         "nose_y",
@@ -181,12 +179,10 @@ last_print_time = time.time()
 
 latest_results = None
 
-# skipped frame에서도 마지막 detector 결과를 계속 표시하기 위한 변수
 latest_head_result = get_unknown_head_result()
 latest_seat_result = get_waiting_seat_result()
 latest_downward_result = get_unknown_downward_result()
 
-# debug mode에서만 표시할 landmark 값
 latest_landmark_values = None
 
 print("One-person SABER dashboard started.")
@@ -200,35 +196,19 @@ print("Press 'q' on the dashboard window or Ctrl+C in terminal to stop.")
 
 try:
     while True:
-        # =========================
-        # Frame capture
-        # =========================
         frame = picam2.capture_array()
         frame_count += 1
 
-        # XRGB8888은 보통 4채널로 들어옴.
-        # OpenCV display는 BGR 3채널 기준이므로 앞 3채널만 사용.
         display_frame = frame[:, :, :3].copy()
-
-        # MediaPipe Pose는 RGB 입력을 사용하므로 inference용만 RGB 변환.
         frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
 
         processed_this_frame = False
 
-        # =========================
-        # Pose inference with frame skip
-        # =========================
         if frame_count % FRAME_SKIP == 0:
             latest_results = pose.process(frame_rgb)
             processed_count += 1
             processed_this_frame = True
 
-        # =========================
-        # Detector update
-        # =========================
-        # 중요:
-        # detector update는 pose.process가 실제로 수행된 프레임에서만 한다.
-        # skipped frame에서는 latest_*_result를 그대로 화면에 표시한다.
         if processed_this_frame:
             if latest_results and latest_results.pose_landmarks:
                 landmarks = latest_results.pose_landmarks.landmark
@@ -285,11 +265,6 @@ try:
                 latest_downward_result = get_unknown_downward_result()
                 latest_landmark_values = None
 
-        # =========================
-        # Landmark drawing
-        # =========================
-        # 화면에는 최신 pose landmark를 표시한다.
-        # 단, latest_results가 no-pose이면 그리지 않는다.
         if latest_results and latest_results.pose_landmarks:
             mp_drawing.draw_landmarks(
                 display_frame,
@@ -297,15 +272,9 @@ try:
                 mp_pose.POSE_CONNECTIONS,
             )
 
-        # =========================
-        # FPS calculation
-        # =========================
         elapsed = time.time() - start_time
         pose_fps = processed_count / elapsed if elapsed > 0 else 0.0
 
-        # =========================
-        # Dashboard rendering
-        # =========================
         dashboard_frame = render_one_person_dashboard(
             camera_frame=display_frame,
             head_result=latest_head_result,
@@ -317,9 +286,6 @@ try:
             landmark_values=latest_landmark_values,
         )
 
-        # =========================
-        # Terminal logging
-        # =========================
         now = time.time()
         if now - last_print_time >= 1.0:
             print_all_results(
@@ -330,9 +296,6 @@ try:
             )
             last_print_time = now
 
-        # =========================
-        # Display
-        # =========================
         cv2.imshow("SABER Dashboard", dashboard_frame)
 
         if cv2.waitKey(1) & 0xFF == ord("q"):
