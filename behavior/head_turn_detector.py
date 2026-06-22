@@ -8,19 +8,6 @@ class HeadTurnDetector:
         critical_turn_count=2,
         history_size=30
     ):
-        """
-        Head turning detector.
-
-        기준:
-        - center -> left/right: 1 turn event
-        - left -> right or right -> left: 1 additional turn event
-        - same direction 유지: count 증가 X
-
-        Severity:
-        - 0 turn  -> low
-        - 1 turn  -> high
-        - 2+ turns -> critical
-        """
         self.offset_threshold = offset_threshold
         self.critical_turn_count = critical_turn_count
 
@@ -89,17 +76,6 @@ class HeadTurnDetector:
         }
 
     def _is_new_turn_event(self, state):
-        """
-        같은 방향을 유지하는 frame은 turn event로 세지 않는다.
-
-        예:
-        center -> left  : event
-        left -> left    : no event
-        left -> center  : no event
-        center -> right : event
-        left -> right   : event
-        right -> left   : event
-        """
 
         if state not in ["left", "right"]:
             return False
