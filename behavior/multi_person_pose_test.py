@@ -63,11 +63,7 @@ RIGHT_HIP = 24
 
 @dataclass
 class PoseData:
-    """
-    한 명의 pose에서 detector에 필요한 landmark만 추출한 구조.
-    x, y는 MediaPipe normalized coordinate.
-    즉, frame width/height 기준 0.0 ~ 1.0 범위.
-    """
+
     pose_index: int
 
     nose_x: Optional[float]
@@ -87,11 +83,7 @@ class PoseData:
 
 @dataclass
 class PersonTrack:
-    """
-    person_id별 상태 저장 객체.
-    detector들은 내부 history/timer/calibration state를 갖기 때문에
-    반드시 사람마다 따로 instance를 유지해야 함.
-    """
+
     person_id: int
     center_x: float
     center_y: float
@@ -121,10 +113,7 @@ class MultiPersonBehaviorMonitor:
         self.frame_index = 0
 
     def update(self, poses: List[PoseData]) -> Dict[int, dict]:
-        """
-        현재 frame에서 감지된 여러 pose를 기존 person track과 매칭하고,
-        person_id별 detector를 업데이트한다.
-        """
+
         self.frame_index += 1
 
         matched_track_ids = set()
@@ -195,10 +184,7 @@ class MultiPersonBehaviorMonitor:
         return self._build_behavior_states()
 
     def _match_tracks_to_poses(self, poses: List[PoseData]) -> List[Tuple[int, int]]:
-        """
-        단순 nearest-neighbor tracking.
-        현재 pose center와 기존 track center의 normalized distance가 가장 가까운 것끼리 매칭.
-        """
+        
         candidates = []
 
         for track_id, track in self.tracks.items():
@@ -286,9 +272,7 @@ class MultiPersonBehaviorMonitor:
 # =========================
 
 def get_visible_landmark(landmarks, index: int, visibility_threshold=VISIBILITY_THRESHOLD):
-    """
-    landmark visibility가 낮으면 None으로 처리.
-    """
+
     if index >= len(landmarks):
         return None
 
@@ -306,10 +290,7 @@ def extract_pose_data(
     frame_width: int,
     frame_height: int,
 ) -> Optional[PoseData]:
-    """
-    MediaPipe PoseLandmarker가 반환한 한 명의 landmarks에서
-    detector에 필요한 nose/shoulder 좌표와 tracking center/bbox를 추출.
-    """
+
     nose = get_visible_landmark(landmarks, NOSE)
     left_shoulder = get_visible_landmark(landmarks, LEFT_SHOULDER)
     right_shoulder = get_visible_landmark(landmarks, RIGHT_SHOULDER)
@@ -364,10 +345,7 @@ def extract_pose_data(
 
 
 def create_pose_landmarker():
-    """
-    MediaPipe Tasks PoseLandmarker 생성.
-    num_poses를 MAX_PEOPLE로 설정해야 multi-person pose 결과를 받을 수 있음.
-    """
+
     BaseOptions = mp.tasks.BaseOptions
     PoseLandmarker = mp.tasks.vision.PoseLandmarker
     PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
@@ -431,10 +409,7 @@ def draw_pose_info(frame, pose: PoseData, person_id: int, behavior: dict):
 
 
 def draw_track_without_pose(frame, track: PersonTrack):
-    """
-    pose가 잠깐 사라진 track 표시.
-    화면 좌표는 normalized center 기준으로 표시.
-    """
+
     cx = int(track.center_x * frame.shape[1])
     cy = int(track.center_y * frame.shape[0])
 

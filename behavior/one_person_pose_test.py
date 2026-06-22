@@ -29,8 +29,6 @@ LEAVING_SEAT_VERSION = "v1"
 # =========================
 # Threshold override settings
 # =========================
-# 여기 값만 바꾸면서 실험하면 됨
-# detector 파일 내부를 직접 수정하지 않아도 됨
 HEAD_TURN_CONFIG = {
     "offset_threshold": 0.04,
     "min_turn_changes": 3,
@@ -93,8 +91,6 @@ pose = mp_pose.Pose(
 # =========================
 picam2 = Picamera2()
 
-# 초록빛 문제 해결용:
-# BGR888 / RGB888 대신 XRGB8888 사용
 config = picam2.create_preview_configuration(
     main={
         "format": "XRGB8888",
@@ -138,10 +134,7 @@ def get_waiting_seat_result():
 
 
 def draw_status_panel(frame, head_result, seat_result, downward_result):
-    """
-    VNC/OpenCV 화면 좌측 상단에 detector 상태와 alert message 표시.
-    frame은 OpenCV display용 BGR frame이어야 함.
-    """
+
     x = 20
     y = 35
     line_gap = 30
@@ -279,14 +272,10 @@ try:
         frame = picam2.capture_array()
         frame_count += 1
 
-        # XRGB8888은 보통 4채널로 들어옴.
-        # OpenCV display는 BGR 3채널 기준이므로 앞 3채널만 사용.
         display_frame = frame[:, :, :3].copy()
 
-        # MediaPipe Pose는 RGB 입력을 사용하므로 inference용만 RGB 변환.
         frame_rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
 
-        # 이번 camera frame에서 pose inference를 실제 수행했는지 표시
         processed_this_frame = False
 
         # =========================
@@ -300,9 +289,6 @@ try:
         # =========================
         # Detector update
         # =========================
-        # 중요:
-        # detector update는 pose.process가 실제로 수행된 프레임에서만 한다.
-        # skipped frame에서는 latest_*_result를 그대로 화면에 표시한다.
         if processed_this_frame:
             if latest_results and latest_results.pose_landmarks:
                 landmarks = latest_results.pose_landmarks.landmark
@@ -365,8 +351,6 @@ try:
         # =========================
         # Landmark drawing
         # =========================
-        # 화면에는 최신 pose landmark를 표시한다.
-        # 단, latest_results가 no-pose이면 그리지 않는다.
         if latest_results and latest_results.pose_landmarks:
             mp_drawing.draw_landmarks(
                 display_frame,
