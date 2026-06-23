@@ -125,7 +125,7 @@ Therefore, Pose FPS was used as the main real-time performance metric.
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<your-username>/SABER.git
+git clone https://github.com/<username>/SABER.git
 cd SABER
 ```
 
@@ -255,7 +255,5 @@ Therefore, final evaluation was conducted in the one-person setting.
 ---
 
 ## Team
-Course Info: IOT systems, HUFS
 ### shinbi Lee, Gyuri Yoon 🤗🤩🤓👻👾
-
----
+(Course Info: IOT systems, HUFS)
