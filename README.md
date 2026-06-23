@@ -41,7 +41,7 @@ Instead, SABER uses temporal logic to reduce false positives caused by short mov
 
 ---
 
-## Hardware
+## Hardware & Software
 
 | Component                         | Description                       |
 | --------------------------------- | --------------------------------- |
@@ -50,10 +50,6 @@ Instead, SABER uses temporal logic to reduce false positives caused by short mov
 | SD Card                           | Raspberry Pi OS and project files |
 | Monitor / VNC Viewer              | Execution screen monitoring       |
 | Putty / SSH                       | Remote terminal access            |
-
----
-
-## Software
 
 | Software        | Role                               |
 | --------------- | ---------------------------------- |
@@ -124,60 +120,7 @@ Therefore, Pose FPS was used as the main real-time performance metric.
 
 ---
 
-## Detector Configuration
-
-### Head Turning Detector
-
-```python
-HEAD_TURN_CONFIG = {
-    "offset_threshold": 0.04,
-    "min_turn_changes": 3,
-    "history_size": 30,
-}
-```
-
-The detector calculates the relative head offset:
-
-```python
-shoulder_center_x = (left_shoulder_x + right_shoulder_x) / 2
-head_offset = nose_x - shoulder_center_x
-```
-
-If repeated left-right state changes occur within the recent history window, the system detects repeated head turning.
-
----
-
-### Downward Posture Detector
-
-```python
-DOWNWARD_POSE_CONFIG = {
-    "calibration_seconds": 3.0,
-    "weak_downward_delta": 0.04,
-    "downward_delta": 0.08,
-    "prolonged_seconds": 2.5,
-}
-```
-
-The detector first calibrates the normal posture baseline for 3 seconds.
-After calibration, it detects downward posture using the change in nose y-position.
-
----
-
-### Leaving Seat Detector
-
-```python
-LEAVING_SEAT_CONFIG = {
-    "no_pose_frame_threshold": 6,
-    "upper_body_y_threshold": 0.15,
-}
-```
-
-The detector counts consecutive frames where pose landmarks are not detected.
-If the no-pose count reaches the threshold, the system detects that the student is absent from the monitored area.
-
----
-
-## How to Run
+## How to Run?
 
 ### 1. Clone the repository
 
