@@ -255,5 +255,5 @@ Therefore, final evaluation was conducted in the one-person setting.
 ---
 
 ## Team
-### shinbi Lee, Gyuri Yoon 🤗🤩🤓👻👾
+### Shinbi Lee, Gyuri Yoon 🤗🤩🤓👻👾
 (Course Info: IOT systems, HUFS)
